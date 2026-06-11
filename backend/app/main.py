@@ -347,3 +347,29 @@ async def get_history(session_id: str):
         "session_id": session_id,
         "messages": messages
     }
+
+
+@app.get("/history/{session_id}")
+async def get_history(session_id: str):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT role, content, created_at
+        FROM messages
+        WHERE session_id = ?
+        ORDER BY id ASC
+        """,
+        (session_id,)
+    )
+
+    messages = [dict(row) for row in cur.fetchall()]
+
+    conn.close()
+
+    return {
+        "session_id": session_id,
+        "messages": messages
+    }
