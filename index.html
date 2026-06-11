@@ -1,0 +1,1171 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resume Assistant</title>
+
+  <!-- Fonts: Newsreader (serif display, close to Claude's headline serif) + Inter (UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:wght@500&display=swap"
+    rel="stylesheet">
+
+  <style>
+    /* ============================================================
+   CONFIG (API_BASE + DEMO_MODE) lives in the JS block below.
+   ============================================================ */
+
+    :root {
+      --bg: #262624;
+      /* warm charcoal canvas */
+      --surface: #30302f;
+      /* composer / cards     */
+      --surface-2: #3a3a38;
+      /* hover / pills        */
+      --border: #403f3c;
+      --border-strong: #54534f;
+      --text: #f5f4ee;
+      /* cream white          */
+      --text-2: #c2c0b6;
+      --muted: #8d8b82;
+      --accent: #d97757;
+      /* Anthropic clay/terracotta */
+      --accent-2: #bd5d3f;
+      --resume: #74b08f;
+      /* provenance: from resume */
+      --inference: #d9a35a;
+      /* provenance: inferred    */
+      --danger: #d97a6c;
+      --radius: 18px;
+      --maxw: 760px;
+      --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-display: 'Newsreader', 'Iowan Old Style', Georgia, 'Times New Roman', serif;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    button {
+      font-family: inherit;
+      color: inherit;
+      cursor: pointer
+    }
+
+    ::selection {
+      background: rgba(217, 119, 87, .32)
+    }
+
+    /* ---------- top status bar ---------- */
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 18px;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .status {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: var(--text-2);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 6px 11px;
+      border-radius: 999px;
+    }
+
+    .status .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--inference)
+    }
+
+    .status.live .dot {
+      background: var(--resume)
+    }
+
+    .status.offline .dot {
+      background: var(--danger)
+    }
+
+    /* ---------- app shell ---------- */
+    .app {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 52px 20px 24px;
+    }
+
+    /* LANDING: vertically centered hero. CHAT: top-aligned conversation. */
+    .app[data-view="landing"] {
+      justify-content: center
+    }
+
+    .app[data-view="chat"] {
+      justify-content: flex-start
+    }
+
+    .stage {
+      width: 100%;
+      max-width: var(--maxw);
+      display: flex;
+      flex-direction: column;
+      min-height: 0
+    }
+
+    /* ---------- hero heading ---------- */
+    .hero {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin: 0 0 30px;
+      transition: margin .35s ease, transform .35s ease;
+    }
+
+    .app[data-view="chat"] .hero {
+      margin: 6px 0 14px
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      color: var(--accent);
+      flex: none;
+      animation: bloom .6s cubic-bezier(.2, .8, .2, 1) both
+    }
+
+    .app[data-view="chat"] .logo {
+      width: 26px;
+      height: 26px
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-style: normal;
+      font-size: 46px;
+      letter-spacing: -.01em;
+      line-height: 1;
+      margin: 0;
+      color: var(--text);
+    }
+
+    .app[data-view="chat"] .hero h1 {
+      font-size: 26px
+    }
+
+    .tagline {
+      text-align: center;
+      color: var(--muted);
+      font-size: 14.5px;
+      margin: -16px 0 28px;
+    }
+
+    .app[data-view="chat"] .tagline {
+      display: none
+    }
+
+    @keyframes bloom {
+      from {
+        opacity: 0;
+        transform: rotate(-90deg) scale(.4)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    /* ---------- upload card ---------- */
+    .dropzone {
+      border: 1.5px dashed var(--border-strong);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255, 255, 255, .012), transparent);
+      padding: 26px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+      transition: border-color .18s, background .18s, transform .18s;
+      margin-bottom: 14px;
+      cursor: pointer;
+    }
+
+    .dropzone:hover {
+      border-color: var(--accent);
+      background: rgba(217, 119, 87, .05)
+    }
+
+    .dropzone.drag {
+      border-color: var(--accent);
+      background: rgba(217, 119, 87, .09);
+      transform: scale(1.005)
+    }
+
+    .dropzone.busy,
+    .dropzone.busy:hover {
+      cursor: default;
+      border-style: solid;
+      border-color: var(--border)
+    }
+
+    .dz-icon {
+      width: 34px;
+      height: 34px;
+      color: var(--accent);
+      margin-bottom: 4px
+    }
+
+    .dz-title {
+      font-size: 15.5px;
+      font-weight: 600;
+      color: var(--text)
+    }
+
+    .dz-sub {
+      font-size: 13px;
+      color: var(--muted)
+    }
+
+    .dz-error {
+      color: var(--danger);
+      font-size: 13px;
+      margin-top: 2px
+    }
+
+    /* uploaded chip (replaces dropzone) */
+    .resume-chip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 9px 12px;
+      margin-bottom: 14px;
+      font-size: 13.5px;
+      animation: fade .3s ease both;
+    }
+
+    .resume-chip .check {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--resume);
+      display: grid;
+      place-items: center;
+      flex: none;
+    }
+
+    .resume-chip .check svg {
+      width: 11px;
+      height: 11px;
+      color: #1c241f
+    }
+
+    .resume-chip .fname {
+      font-weight: 500;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap
+    }
+
+    .resume-chip .replace {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 12.5px;
+      padding: 4px 6px;
+      border-radius: 7px;
+      flex: none;
+    }
+
+    .resume-chip .replace:hover {
+      color: var(--text-2);
+      background: var(--surface-2)
+    }
+
+    /* spinner */
+    .spin {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2.4px solid var(--border-strong);
+      border-top-color: var(--accent);
+      animation: rot .7s linear infinite
+    }
+
+    @keyframes rot {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(4px)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    /* ---------- conversation ---------- */
+    .thread {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 4px 2px 8px;
+      margin-bottom: 10px;
+    }
+
+    .app[data-view="landing"] .thread {
+      display: none
+    }
+
+    .thread::-webkit-scrollbar {
+      width: 8px
+    }
+
+    .thread::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 8px
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      animation: fade .25s ease both
+    }
+
+    .msg.user {
+      align-items: flex-end
+    }
+
+    .bubble-user {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      border-radius: 14px 14px 4px 14px;
+      max-width: 86%;
+      white-space: pre-wrap;
+    }
+
+    .msg.assistant {
+      align-items: flex-start
+    }
+
+    .answer {
+      max-width: 92%
+    }
+
+    .answer p {
+      margin: 0 0 2px;
+      white-space: pre-wrap
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      margin-top: 10px
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 500;
+      letter-spacing: .01em;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      text-transform: capitalize;
+    }
+
+    .badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%
+    }
+
+    .badge.resume {
+      border-color: rgba(116, 176, 143, .4);
+      color: #9fcdb3
+    }
+
+    .badge.resume .dot {
+      background: var(--resume)
+    }
+
+    .badge.inference {
+      border-color: rgba(217, 163, 90, .4);
+      color: #e3c189
+    }
+
+    .badge.inference .dot {
+      background: var(--inference)
+    }
+
+    .conf {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+      color: var(--muted)
+    }
+
+    .conf .track {
+      width: 74px;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--border);
+      overflow: hidden
+    }
+
+    .conf .fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width .4s ease
+    }
+
+    .missing {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-top: 9px;
+      font-size: 11.5px;
+      color: var(--muted)
+    }
+
+    .missing .tag {
+      background: rgba(217, 122, 108, .12);
+      border: 1px solid rgba(217, 122, 108, .3);
+      color: #e6a89f;
+      padding: 2px 8px;
+      border-radius: 7px;
+    }
+
+    /* typing dots */
+    .typing {
+      display: inline-flex;
+      gap: 5px;
+      padding: 6px 2px
+    }
+
+    .typing span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: blink 1.2s infinite both
+    }
+
+    .typing span:nth-child(2) {
+      animation-delay: .18s
+    }
+
+    .typing span:nth-child(3) {
+      animation-delay: .36s
+    }
+
+    @keyframes blink {
+
+      0%,
+      80%,
+      100% {
+        opacity: .25
+      }
+
+      40% {
+        opacity: 1
+      }
+    }
+
+    .errline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--danger);
+      font-size: 13px
+    }
+
+    .errline button {
+      background: none;
+      border: 1px solid var(--border-strong);
+      color: var(--text-2);
+      border-radius: 8px;
+      padding: 3px 10px;
+      font-size: 12px
+    }
+
+    .errline button:hover {
+      background: var(--surface-2)
+    }
+
+    /* empty state after upload */
+    .empty-hint {
+      text-align: center;
+      color: var(--muted);
+      font-size: 13.5px;
+      padding: 6px 0 18px;
+    }
+
+    .app[data-view="landing"] .empty-hint {
+      display: none
+    }
+
+    /* ---------- composer ---------- */
+    .composer {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 6px 6px 16px;
+      transition: border-color .18s, box-shadow .18s, opacity .18s;
+    }
+
+    .composer:focus-within {
+      border-color: var(--border-strong);
+      box-shadow: 0 0 0 3px rgba(217, 119, 87, .12)
+    }
+
+    .composer.locked {
+      opacity: .6
+    }
+
+    .composer.locked:focus-within {
+      border-color: var(--border);
+      box-shadow: none
+    }
+
+    textarea#input {
+      width: 100%;
+      border: none;
+      background: transparent;
+      outline: none;
+      resize: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 15px;
+      line-height: 1.5;
+      padding: 10px 0 4px;
+      max-height: 180px;
+      overflow-y: auto;
+
+      /* IMPORTANT */
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    textarea#input::placeholder {
+      color: var(--muted);
+      opacity: 1;
+    }
+
+    textarea#input:disabled {
+      background: transparent !important;
+      color: var(--muted) !important;
+      -webkit-text-fill-color: var(--muted) !important;
+      opacity: 1 !important;
+      cursor: not-allowed;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px
+    }
+
+    .tool {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      border: none;
+      background: none;
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+    }
+
+    .tool:hover:not(:disabled) {
+      background: var(--surface-2);
+      color: var(--text-2)
+    }
+
+    .tool:disabled {
+      opacity: .5;
+      cursor: not-allowed
+    }
+
+    .tool svg {
+      width: 18px;
+      height: 18px
+    }
+
+    .model {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: none;
+      background: none;
+      color: var(--text-2);
+      font-size: 13px;
+      padding: 6px 8px;
+      border-radius: 9px;
+      margin-left: auto;
+    }
+
+    .model:hover {
+      background: var(--surface-2)
+    }
+
+    .model .lvl {
+      color: var(--muted)
+    }
+
+    .model svg {
+      width: 13px;
+      height: 13px;
+      color: var(--muted)
+    }
+
+    .send {
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      flex: none;
+      transition: background .15s, opacity .15s;
+    }
+
+    .send:hover:not(:disabled) {
+      background: var(--accent-2)
+    }
+
+    .send:disabled {
+      background: var(--surface-2);
+      color: var(--muted);
+      cursor: not-allowed
+    }
+
+    .send svg {
+      width: 17px;
+      height: 17px
+    }
+
+    /* ---------- quick prompts ---------- */
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 14px
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      font-size: 13px;
+      padding: 7px 13px;
+      border-radius: 10px;
+      transition: background .15s, border-color .15s, opacity .15s;
+    }
+
+    .pill:hover:not(:disabled) {
+      background: var(--surface-2);
+      border-color: var(--border-strong)
+    }
+
+    .pill:disabled {
+      opacity: .45;
+      cursor: not-allowed
+    }
+
+    .pill svg {
+      width: 14px;
+      height: 14px;
+      color: var(--accent)
+    }
+
+    .app[data-view="chat"] .pills {
+      margin-top: 10px
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 6px
+    }
+
+    @media (max-width:540px) {
+      .hero h1 {
+        font-size: 36px
+      }
+
+      .logo {
+        width: 34px;
+        height: 34px
+      }
+
+      .pills {
+        gap: 6px
+      }
+
+      .pill {
+        padding: 6px 10px;
+        font-size: 12.5px
+      }
+    }
+
+    @media (prefers-reduced-motion:reduce) {
+      * {
+        animation: none !important;
+        transition: none !important
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="topbar">
+    <div id="status" class="status"><span class="dot"></span><span id="statusText">Demo mode</span></div>
+  </div>
+
+  <div class="app" id="app" data-view="landing">
+    <div class="stage">
+
+      <!-- HERO -->
+      <div class="hero">
+        <!-- Anthropic-style sunburst. To use your own file instead, replace this
+           whole <svg> with:  <img class="logo" src="logo.png" alt=""> -->
+        <img class="logo" src="logo.png" alt="">
+        <defs>
+          <path id="ray" d="M0,-2.6 C1.7,-7 1.7,-13 0,-19.2 C-1.7,-13 -1.7,-7 0,-2.6 Z" />
+        </defs>
+        <use href="#ray" transform="rotate(0)" />
+        <use href="#ray" transform="rotate(30)" />
+        <use href="#ray" transform="rotate(60)" />
+        <use href="#ray" transform="rotate(90)" />
+        <use href="#ray" transform="rotate(120)" />
+        <use href="#ray" transform="rotate(150)" />
+        <use href="#ray" transform="rotate(180)" />
+        <use href="#ray" transform="rotate(210)" />
+        <use href="#ray" transform="rotate(240)" />
+        <use href="#ray" transform="rotate(270)" />
+        <use href="#ray" transform="rotate(300)" />
+        <use href="#ray" transform="rotate(330)" />
+        </svg>
+        <h1>Hola!</h1>
+      </div>
+
+      <p class="tagline">Upload a resume and I'll answer questions grounded in it.</p>
+
+      <!-- UPLOAD CARD (swapped for a chip after success) -->
+      <div id="uploadSlot">
+        <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload your resume">
+          <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 16V4M12 4l-4 4M12 4l4 4" />
+            <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+          </svg>
+          <div class="dz-title">Upload your resume</div>
+          <div class="dz-sub">Drag and drop, or click to browse · PDF or TXT, up to 10&nbsp;MB</div>
+        </div>
+      </div>
+      <input type="file" id="file" accept=".pdf,.txt,application/pdf,text/plain" hidden />
+
+      <!-- EMPTY HINT (after upload, before first message) -->
+      <p class="empty-hint" id="emptyHint">Resume loaded. Ask anything — each answer is labelled <em>Resume</em> or
+        <em>Inference</em>.
+      </p>
+
+      <!-- CONVERSATION -->
+      <div class="thread" id="thread" role="log" aria-live="polite" aria-label="Conversation"></div>
+
+      <!-- COMPOSER -->
+      <div class="composer locked" id="composer">
+        <textarea id="input" rows="1" placeholder="Upload a resume to start chatting" disabled></textarea>
+        <div class="toolbar">
+          <button class="tool" id="attach" title="Upload resume" aria-label="Upload resume">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+          <button class="model" id="model" type="button" title="Provider (cosmetic — wire to your backend if you like)">
+            <span id="modelName">Groq · Llama 3.3</span><span class="lvl">Fast</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <button class="tool" disabled title="Voice (Phase 4)" aria-label="Voice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+              stroke-linejoin="round">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+            </svg>
+          </button>
+          <button class="send" id="send" disabled aria-label="Send message">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
+              <path d="M12 19V5M12 5l-6 6M12 5l6 6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- QUICK PROMPTS -->
+      <div class="pills" id="pills"></div>
+
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================================
+       CONFIG  — the only two knobs you need.
+       • DEMO_MODE true  → upload + chat are simulated locally so the whole flow
+         works in the browser with no backend. Great for previewing / deploying a demo.
+       • DEMO_MODE false → talks to your FastAPI backend:
+           POST {API_BASE}/upload  (multipart form, field "file")  → { session_id, ... }
+           POST {API_BASE}/chat    (JSON {session_id, query, model}) → AssistantResponse
+         AssistantResponse = { answer:str, confidence:0..1, source:"resume"|"inference", missing_data:[str] }
+       ============================================================================ */
+    const CONFIG = {
+      API_BASE: "http://localhost:8000",
+      DEMO_MODE: true,
+    };
+
+    /* ---------- state ---------- */
+    const state = { uploaded: false, sessionId: null, filename: null, busy: false, messages: [] };
+
+    /* ---------- elements ---------- */
+    const $ = s => document.querySelector(s);
+    const app = $("#app"), dropzone = $("#dropzone"), uploadSlot = $("#uploadSlot"),
+      fileInput = $("#file"), composer = $("#composer"), input = $("#input"),
+      sendBtn = $("#send"), attachBtn = $("#attach"), thread = $("#thread"),
+      pills = $("#pills"), statusEl = $("#status"), statusText = $("#statusText"),
+      modelBtn = $("#model"), modelName = $("#modelName");
+
+    /* ---------- quick prompts ---------- */
+    const QUICK = [
+      "Summarize the candidate",
+      "What are their top skills?",
+      "How many years of experience?",
+      "Are they a fit for a backend engineer role?",
+      "What's missing from the resume?",
+    ];
+
+    /* ---------- init ---------- */
+    function init() {
+      statusEl.classList.add(CONFIG.DEMO_MODE ? "" : "live");
+      statusText.textContent = CONFIG.DEMO_MODE ? "Demo mode" : "Connected";
+      renderPills();
+      // open file dialog from the dropzone or the + button
+      dropzone.addEventListener("click", () => !state.busy && fileInput.click());
+      dropzone.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && !state.busy) { e.preventDefault(); fileInput.click(); } });
+      attachBtn.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", e => { if (e.target.files[0]) handleFile(e.target.files[0]); fileInput.value = ""; });
+
+      ;["dragenter", "dragover"].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add("drag"); }));
+      ;["dragleave", "drop"].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove("drag"); }));
+      dropzone.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+
+      input.addEventListener("input", autoGrow);
+      input.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } });
+      sendBtn.addEventListener("click", submit);
+      input.addEventListener("input", () => sendBtn.disabled = state.busy || !state.uploaded || !input.value.trim());
+
+      // cosmetic provider toggle (mirrors the build guide's swappable provider)
+      modelBtn.addEventListener("click", () => {
+        modelName.textContent = modelName.textContent.startsWith("Groq")
+          ? "Claude · Opus 4.8" : "Groq · Llama 3.3";
+      });
+    }
+
+    function autoGrow() { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 180) + "px"; }
+
+    /* ---------- upload flow ---------- */
+    async function handleFile(file) {
+      const okType = /\.(pdf|txt)$/i.test(file.name);
+      if (!okType) return showDropError("That file type won't work — upload a PDF or .txt.");
+      if (file.size > 10 * 1024 * 1024) return showDropError("That file is over 10 MB. Try a smaller one.");
+
+      state.busy = true;
+      uploadSlot.innerHTML =
+        `<div class="dropzone busy"><div class="spin"></div>
+       <div class="dz-title" style="margin-top:8px">Reading ${escapeHTML(file.name)}…</div>
+       <div class="dz-sub">Extracting and structuring the resume</div></div>`;
+
+      try {
+        let res;
+        if (CONFIG.DEMO_MODE) {
+          await wait(1200);
+          res = { session_id: "demo-" + Math.random().toString(36).slice(2, 9) };
+        } else {
+          const fd = new FormData(); fd.append("file", file);
+          const r = await fetch(`${CONFIG.API_BASE}/upload`, { method: "POST", body: fd });
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          res = await r.json();
+        }
+        state.sessionId = res.session_id || res.sessionId || "session";
+        state.filename = file.name;
+        state.uploaded = true;
+        showResumeChip(file.name);
+        unlockComposer();
+      } catch (err) {
+        state.busy = false;
+        restoreDropzone();
+        showDropError("Couldn't process that resume. " +
+          (CONFIG.DEMO_MODE ? "Try again." : "Is the backend running at " + CONFIG.API_BASE + "?"));
+      }
+      state.busy = false;
+    }
+
+    function showDropError(msg) {
+      restoreDropzone();
+      const e = document.createElement("div"); e.className = "dz-error"; e.textContent = msg;
+      $("#dropzone").appendChild(e);
+    }
+    function restoreDropzone() {
+      uploadSlot.innerHTML =
+        `<div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Upload your resume">
+       <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+       <div class="dz-title">Upload your resume</div>
+       <div class="dz-sub">Drag and drop, or click to browse · PDF or TXT, up to 10&nbsp;MB</div>
+     </div>`;
+      rebindDropzone();
+    }
+    function rebindDropzone() {
+      const dz = $("#dropzone");
+      dz.addEventListener("click", () => !state.busy && fileInput.click());
+      dz.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && !state.busy) { e.preventDefault(); fileInput.click(); } });
+      ;["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("drag"); }));
+      ;["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("drag"); }));
+      dz.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+    }
+
+    function showResumeChip(name) {
+      uploadSlot.innerHTML =
+        `<div class="resume-chip">
+       <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+       <span class="fname">${escapeHTML(name)}</span>
+       <button class="replace" id="replace">Replace</button>
+     </div>`;
+      $("#replace").addEventListener("click", () => fileInput.click());
+    }
+
+    function unlockComposer() {
+      composer.classList.remove("locked");
+      input.disabled = false;
+      input.placeholder = "Ask about the candidate's experience, skills, or fit…";
+      renderPills();
+      input.focus();
+    }
+
+    /* ---------- chat flow ---------- */
+    function submit() {
+      const text = input.value.trim();
+      if (!text || !state.uploaded || state.busy) return;
+      input.value = ""; autoGrow(); sendBtn.disabled = true;
+      addMessage({ role: "user", text });
+      ask(text);
+    }
+
+    async function ask(query) {
+      app.dataset.view = "chat";
+      state.busy = true;
+      const typingId = addTyping();
+
+      try {
+        let data;
+        if (CONFIG.DEMO_MODE) {
+          await wait(700 + Math.random() * 600);
+          data = fakeAssistant(query);
+        } else {
+          const r = await fetch(`${CONFIG.API_BASE}/chat`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: state.sessionId, query, model: modelName.textContent })
+          });
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          data = await r.json();
+        }
+        removeNode(typingId);
+        addMessage({ role: "assistant", data });
+      } catch (err) {
+        removeNode(typingId);
+        addError(query);
+      }
+      state.busy = false;
+      sendBtn.disabled = !input.value.trim();
+    }
+
+    /* ---------- rendering ---------- */
+    function addMessage(m) {
+      state.messages.push(m);
+      const el = document.createElement("div");
+      el.className = "msg " + m.role;
+      if (m.role === "user") {
+        el.innerHTML = `<div class="bubble-user">${escapeHTML(m.text)}</div>`;
+      } else {
+        el.innerHTML = renderAnswer(m.data);
+      }
+      thread.appendChild(el); scrollDown();
+    }
+
+    function renderAnswer(d) {
+      const conf = Math.max(0, Math.min(1, Number(d.confidence ?? 0)));
+      const pct = Math.round(conf * 100);
+      const src = d.source === "resume" ? "resume" : "inference";
+      const fill = src === "resume" ? "var(--resume)" : "var(--inference)";
+      const missing = Array.isArray(d.missing_data) ? d.missing_data : [];
+      return `
+    <div class="answer">
+      <p>${escapeHTML(d.answer ?? "")}</p>
+      <div class="meta">
+        <span class="badge ${src}"><span class="dot"></span>${src === "resume" ? "Resume" : "Inference"}</span>
+        <span class="conf">
+          <span class="track"><span class="fill" style="width:${pct}%;background:${fill}"></span></span>
+          ${pct}% confidence
+        </span>
+      </div>
+      ${missing.length ? `<div class="missing">Not in resume:
+        ${missing.map(m => `<span class="tag">${escapeHTML(m)}</span>`).join("")}</div>` : ""}
+    </div>`;
+    }
+
+    function addTyping() {
+      const id = "t" + Date.now();
+      const el = document.createElement("div");
+      el.className = "msg assistant"; el.id = id;
+      el.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
+      thread.appendChild(el); scrollDown(); return id;
+    }
+    function addError(query) {
+      const el = document.createElement("div"); el.className = "msg assistant";
+      el.innerHTML = `<div class="errline"><span>That didn't go through.${CONFIG.DEMO_MODE ? "" : " Check the backend, then resend."}</span><button>Retry</button></div>`;
+      el.querySelector("button").addEventListener("click", () => { el.remove(); ask(query); });
+      thread.appendChild(el); scrollDown();
+    }
+    function removeNode(id) { const n = document.getElementById(id); if (n) n.remove(); }
+    function scrollDown() { requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; }); }
+
+    function renderPills() {
+      pills.innerHTML = "";
+      QUICK.forEach(q => {
+        const b = document.createElement("button");
+        b.className = "pill"; b.disabled = !state.uploaded;
+        b.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>${escapeHTML(q)}`;
+        b.addEventListener("click", () => { if (!state.uploaded) return; input.value = q; submit(); });
+        pills.appendChild(b);
+      });
+    }
+
+    /* ---------- demo backend (mirrors the build guide's router + schema) ---------- */
+    function fakeAssistant(query) {
+      const q = query.toLowerCase();
+      const has = (...k) => k.some(w => q.includes(w));
+
+      if (has("missing", "gpa", "grade", "salary", "age", "address", "phone", "email", "reference")) {
+        const field = q.includes("gpa") || q.includes("grade") ? "GPA"
+          : q.includes("salary") ? "Expected salary"
+            : q.includes("age") ? "Age" : q.includes("phone") ? "Phone number"
+              : q.includes("address") ? "Address" : "Several requested fields";
+        return {
+          answer: "Not mentioned in the resume. I only state what the document supports, and this isn't in it.",
+          confidence: 0.32, source: "inference", missing_data: [field]
+        };
+      }
+      if (has("skill", "tech", "stack", "tools", "languages")) {
+        return {
+          answer: "The resume lists Python, JavaScript/TypeScript, React, FastAPI, SQL, and AWS, with supporting experience in Docker and CI/CD pipelines.",
+          confidence: 0.95, source: "resume", missing_data: []
+        };
+      }
+      if (has("fit", "match", "suitable", "required", "role")) {
+        return {
+          answer: "Strong fit for a backend engineer role: 4 of 5 core skills (Python, SQL, FastAPI, AWS) appear in the resume. Kubernetes is the main gap.",
+          confidence: 0.95, source: "resume", missing_data: ["Kubernetes"]
+        };
+      }
+      if (has("year", "experience", "how long", "seniority")) {
+        return {
+          answer: "Based on the listed roles, the candidate has roughly 3–4 years of professional experience across two companies.",
+          confidence: 0.7, source: "inference", missing_data: []
+        };
+      }
+      if (has("summar", "overview", "tell me about", "who is", "describe")) {
+        return {
+          answer: "A software engineer with a backend and data focus, experience building APIs and data pipelines, and a track record shipping production services. Education is in computer/electronics engineering.",
+          confidence: 0.68, source: "inference", missing_data: []
+        };
+      }
+      return {
+        answer: "The resume covers the candidate's experience, skills, and education. Ask about any of those and I'll tell you whether the answer comes from the resume or is inferred.",
+        confidence: 0.6, source: "inference", missing_data: []
+      };
+    }
+
+    /* ---------- utils ---------- */
+    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function escapeHTML(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+    init();
+  </script>
+</body>
+
+</html>
