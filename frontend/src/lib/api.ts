@@ -17,6 +17,20 @@ export interface Message {
 }
 
 export const api = {
+
+
+  async getHistory(sessionId: string) {
+    const response = await fetch(
+      `${API_BASE}/history/${sessionId}`
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to load history");
+    }
+
+    return response.json();
+  },
+
   async uploadResume(file: File): Promise<{ session_id: string }> {
     const formData = new FormData();
     formData.append("file", file);
@@ -26,18 +40,35 @@ export const api = {
       body: formData,
     });
 
-    if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+
     return response.json();
   },
 
-  async chat(sessionId: string, query: string, model: string): Promise<AssistantResponse> {
+  async chat(
+    sessionId: string,
+    query: string,
+    model: string
+  ): Promise<AssistantResponse> {
+
     const response = await fetch(`${API_BASE}/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, query, model }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        query,
+        model,
+      }),
     });
 
-    if (!response.ok) throw new Error(`Chat failed: ${response.statusText}`);
+    if (!response.ok) {
+      throw new Error(`Chat failed: ${response.statusText}`);
+    }
+
     return response.json();
   }
 };
